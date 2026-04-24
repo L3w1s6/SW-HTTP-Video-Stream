@@ -15,8 +15,7 @@ import com.sun.net.httpserver.HttpHandler;
 import com.sun.net.httpserver.HttpExchange;
 
 public class Run {
-//	private BufferedImage finalImage;
-	private ResourceSync<BufferedImage> finalImage = new ResourceSync<>();
+	private ResourceSync<String> frameEncoded = new ResourceSync<>();
 	private final int PORT;
 	private int outW, outH; // shouldn't need thread-safe?
 	
@@ -24,29 +23,6 @@ public class Run {
 		PORT = 8080;
 		outW = 64;
 		outH = 64;
-	}
-	
-	private static String encodeOptimised(BufferedImage img) {
-		StringBuilder packet = new StringBuilder();
-		int width = img.getWidth();
-		int height = img.getHeight();
-		
-		for (int y = 0; y < height; y++) {
-			for (int x = 0; x < width; x++) {
-				int color = img.getRGB(x, y);
-				int startX = x;
-				
-				// Find how many horizontal pixels have the same color
-				while (x + 1 < width && img.getRGB(x + 1, y) == color) {x++;}
-				int runWidth = (x - startX) + 1;
-				
-				// Format: R,G,B,X,Y,W| (Quantized to 0-255)
-				Color c = new Color(color);
-				packet.append(String.format("%d,%d,%d,%d,%d,%d|", 
-				c.getRed(), c.getGreen(), c.getBlue(), startX, y, runWidth));
-			}
-		}
-		return packet.toString();
 	}
 
 	private static HashMap<String, String> parseQuery(String query) {
@@ -78,10 +54,9 @@ public class Run {
 		return w != outW || h != outH;
 	}
 	
-	// NEED SYNCRONISED
-	public void updateFrame(BufferedImage img) {
-//		finalImage = img;
-		finalImage.set(img);
+	// Thread-safe update current encoded frame with new encoded frame
+	public void updateFrame(String encoded) {
+		frameEncoded.set(encoded);
 	}
 
 	public static void main(String[] args) {
@@ -106,10 +81,10 @@ public class Run {
 		}
 		server.createContext("/stream", exchange -> {
 			// SEND the compressed frame back as response
-			String hexFrame = encodeOptimised(main.finalImage.get());
-			exchange.sendResponseHeaders(200, hexFrame.length());
+			String encoded = main.frameEncoded.get();
+			exchange.sendResponseHeaders(200, encoded.length());
 			OutputStream os = exchange.getResponseBody();
-			os.write(hexFrame.getBytes());
+			os.write(encoded.getBytes());
 			exchange.close();
 		});
 		server.createContext("/data", exchange -> {
