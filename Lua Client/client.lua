@@ -2,6 +2,7 @@ W, H = 64, 64
 debugStr = ""
 httpPort = 8080
 serverRunning = true
+debug = true
 
 tick = 0
 function onTick()
@@ -22,7 +23,7 @@ end
 
 -- Callback when Java responds
 function httpReply(port, request_body, response_body)
-	debugStr = port .. "|" .. request_body --for debug print
+	if debug then debugStr = port .. "|" .. request_body end --for debug print
 	
 	if response_body == "connect(): Connection refused" then
 		debugStr = "no webserver running, slowed"
@@ -36,17 +37,21 @@ function httpReply(port, request_body, response_body)
 end
 
 function onDraw()
-	W, H = screen.getWidth(), screen.getHeight()
-	
-	-- debug
-	screen.setColor(255, 255, 255)
-	screen.drawText(0, H - 5, debugStr)
-	
 	if not frameData then return end -- Skip draw if no frame data
+	
+	W, H = screen.getWidth(), screen.getHeight()
 	
 	-- Iterate through each "R,G,B,X,Y,W|" group
     for r, g, b, x, y, w in string.gmatch(frameData, "(%d+),(%d+),(%d+),(%d+),(%d+),(%d+)|") do
         screen.setColor(tonumber(r), tonumber(g), tonumber(b))
         screen.drawRectF(tonumber(x), tonumber(y), tonumber(w), 1)
     end
+
+	-- debug info (bottom left)
+	if debug then
+		screen.setColor(0, 0, 0)
+		screen.drawRectF(0, H - 5, 109, 5)
+		screen.setColor(255, 255, 255)
+		screen.drawText(0, H - 5, debugStr)
+	end
 end

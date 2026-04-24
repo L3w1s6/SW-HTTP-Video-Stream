@@ -15,7 +15,16 @@ import com.sun.net.httpserver.HttpHandler;
 import com.sun.net.httpserver.HttpExchange;
 
 public class Run {
-	private static int SW_WIDTH, SW_HEIGHT;
+//	private BufferedImage finalImage;
+	private ResourceSync<BufferedImage> finalImage = new ResourceSync<>();
+	private final int PORT;
+	private int outW, outH; // shouldn't need thread-safe?
+	
+	public Run() {
+		PORT = 8080;
+		outW = 64;
+		outH = 64;
+	}
 	
 	private static String encodeOptimised(BufferedImage img) {
 		StringBuilder packet = new StringBuilder();
@@ -63,42 +72,41 @@ public class Run {
 		}
 		return params;
 	}
+	
+	// returns true if difference between new resolution & current presolution
+	private boolean outResDiff(int w, int h) {
+		return w != outW || h != outH;
+	}
+	
+	// NEED SYNCRONISED
+	public void updateFrame(BufferedImage img) {
+//		finalImage = img;
+		finalImage.set(img);
+	}
 
 	public static void main(String[] args) {
+		Run main = new Run();
+		
 		/*
 		 * Screen capture (downscaled)
 		 */
-		Robot robot = null;
-		try {
-			robot = new Robot();
-			System.out.println("Robot initialised");
-		} catch (AWTException e) {
-			e.printStackTrace();
-		}
-		Rectangle captureRect = new Rectangle(0, 0, 1920, 1080); // Your screen
-		BufferedImage screen = robot.createScreenCapture(captureRect);
-		
-		// Resize to Stormworks Monitor resolution
-		SW_WIDTH = 288;
-		SW_HEIGHT = 160;
-		Image scaled = screen.getScaledInstance(SW_WIDTH, SW_HEIGHT, Image.SCALE_FAST);
-		BufferedImage finalImage = new BufferedImage(SW_WIDTH, SW_HEIGHT, BufferedImage.TYPE_INT_RGB);
-		finalImage.getGraphics().drawImage(scaled, 0, 0, null);
+		CaptureThread capThread = new CaptureThread(main);
+		capThread.start();
 		
 		/*
 		 * HTTP server
 		 */
 		HttpServer server = null;
 		try {
-			final int PORT = 8080;
-			server = HttpServer.create(new InetSocketAddress(PORT), 0);
-			System.out.println("Server started on port " + PORT);
+			
+			server = HttpServer.create(new InetSocketAddress(main.PORT), 0);
+			System.out.println("Server started on port " + main.PORT);
 		} catch (IOException e) {
 			e.printStackTrace();
 		}
 		server.createContext("/stream", exchange -> {
 			// SEND the compressed frame back as response
-			String hexFrame = encodeOptimised(finalImage);
+			String hexFrame = encodeOptimised(main.finalImage.get());
 			exchange.sendResponseHeaders(200, hexFrame.length());
 			OutputStream os = exchange.getResponseBody();
 			os.write(hexFrame.getBytes());
@@ -112,8 +120,10 @@ public class Run {
 				System.out.println(params);
 				
 				if (params.containsKey("w") && params.containsKey("h")) {
-					SW_WIDTH = Integer.parseInt(params.get("w"));
-					SW_HEIGHT = Integer.parseInt(params.get("h"));
+					int w = Integer.parseInt(params.get("w")), h = Integer.parseInt(params.get("h"));
+					if (main.outResDiff(w, h)) {
+						capThread.setOutputRes(w, h);
+					}
 				}
 			}
 			
