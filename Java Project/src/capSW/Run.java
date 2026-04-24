@@ -15,6 +15,8 @@ import com.sun.net.httpserver.HttpHandler;
 import com.sun.net.httpserver.HttpExchange;
 
 public class Run {
+	private static int SW_WIDTH, SW_HEIGHT;
+	
 	private static String encodeOptimised(BufferedImage img) {
 		StringBuilder packet = new StringBuilder();
 		int width = img.getWidth();
@@ -77,7 +79,8 @@ public class Run {
 		BufferedImage screen = robot.createScreenCapture(captureRect);
 		
 		// Resize to Stormworks Monitor resolution
-		int SW_WIDTH = 288, SW_HEIGHT = 160;
+		SW_WIDTH = 288;
+		SW_HEIGHT = 160;
 		Image scaled = screen.getScaledInstance(SW_WIDTH, SW_HEIGHT, Image.SCALE_FAST);
 		BufferedImage finalImage = new BufferedImage(SW_WIDTH, SW_HEIGHT, BufferedImage.TYPE_INT_RGB);
 		finalImage.getGraphics().drawImage(scaled, 0, 0, null);
@@ -107,6 +110,11 @@ public class Run {
 			if (query != null) {// check query exists
 				HashMap<String, String> params = parseQuery(query);
 				System.out.println(params);
+				
+				if (params.containsKey("w") && params.containsKey("h")) {
+					SW_WIDTH = Integer.parseInt(params.get("w"));
+					SW_HEIGHT = Integer.parseInt(params.get("h"));
+				}
 			}
 			
 			// always return & close GET
