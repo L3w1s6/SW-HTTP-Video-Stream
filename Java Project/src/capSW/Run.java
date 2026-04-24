@@ -76,9 +76,10 @@ public class Run {
 		Rectangle captureRect = new Rectangle(0, 0, 1920, 1080); // Your screen
 		BufferedImage screen = robot.createScreenCapture(captureRect);
 		
-		// Resize to Stormworks Monitor resolution (e.g., 64x64)
-		Image scaled = screen.getScaledInstance(128, 128, Image.SCALE_FAST);
-		BufferedImage finalImage = new BufferedImage(128, 128, BufferedImage.TYPE_INT_RGB);
+		// Resize to Stormworks Monitor resolution
+		int SW_WIDTH = 288, SW_HEIGHT = 160;
+		Image scaled = screen.getScaledInstance(SW_WIDTH, SW_HEIGHT, Image.SCALE_FAST);
+		BufferedImage finalImage = new BufferedImage(SW_WIDTH, SW_HEIGHT, BufferedImage.TYPE_INT_RGB);
 		finalImage.getGraphics().drawImage(scaled, 0, 0, null);
 		
 		/*
