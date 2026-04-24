@@ -12,6 +12,7 @@ public class CaptureThread extends Thread {
 	private Run main;
 	private Robot robot;
 	private Rectangle capRect;
+	private BufferedImage finalImage;
 	
 	public CaptureThread(Run main) {
 		this.main = main;
@@ -27,6 +28,8 @@ public class CaptureThread extends Thread {
 		
 		widthSW = new ResourceSync<>(288);
 		heightSW = new ResourceSync<>(160);
+		
+		finalImage = new BufferedImage(widthSW.get(), heightSW.get(), BufferedImage.TYPE_INT_RGB);
 	}
 	
 	// NEEDS SYNCHRONISED
@@ -37,14 +40,16 @@ public class CaptureThread extends Thread {
 	
 	@Override
 	public void run() {
-		BufferedImage screen = robot.createScreenCapture(capRect); // get single frame
-		
-		// Resize to Stormworks Monitor resolution
-		Image scaled = screen.getScaledInstance(widthSW.get(), heightSW.get(), Image.SCALE_FAST);
-		BufferedImage finalImage = new BufferedImage(widthSW.get(), heightSW.get(), BufferedImage.TYPE_INT_RGB);
-		finalImage.getGraphics().drawImage(scaled, 0, 0, null);
-		
-		main.updateFrame(finalImage);
-		System.out.println("Cap: updated frame");
+		while (true) {			
+			BufferedImage screen = robot.createScreenCapture(capRect); // get single frame
+			
+			// Resize to Stormworks Monitor resolution
+			Image scaled = screen.getScaledInstance(widthSW.get(), heightSW.get(), Image.SCALE_FAST);
+			finalImage.getGraphics().drawImage(scaled, 0, 0, null);
+			
+			main.updateFrame(finalImage); // send frame to main
+			
+			try {Thread.sleep(250);} catch (InterruptedException e) {e.printStackTrace();} // wait before getting new frame
+		}
 	}
 }
