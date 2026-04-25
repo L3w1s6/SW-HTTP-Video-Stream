@@ -7,26 +7,23 @@ import java.awt.Rectangle;
 import java.awt.Robot;
 import java.awt.image.BufferedImage;
 
+import org.bytedeco.javacv.FFmpegFrameGrabber;
+import org.bytedeco.javacv.Frame;
+import org.bytedeco.javacv.Java2DFrameConverter;
+
 public class CaptureThread extends Thread {
 	private ResourceSync<Integer> widthSW, heightSW;
 	
 	private Run main;
-	private Robot robot;
-	private Rectangle capRect;
+	private boolean running;
+	private Java2DFrameConverter converter;
 	private BufferedImage img;
 	private String imgEncoded;
 	
 	public CaptureThread(Run main) {
 		this.main = main;
 		
-		robot = null;
-		try {
-			robot = new Robot();
-			System.out.println("Cap: Robot initialised");
-		} catch (AWTException e) {
-			e.printStackTrace();
-		}
-		capRect = new Rectangle(0, 0, 1920, 1080); // my screen size
+		running = true;
 		
 		widthSW = new ResourceSync<>(288);
 		heightSW = new ResourceSync<>(160);
@@ -66,17 +63,33 @@ public class CaptureThread extends Thread {
 	
 	@Override
 	public void run() {
-		while (true) {			
-			BufferedImage screen = robot.createScreenCapture(capRect); // get single frame
+		org.bytedeco.javacv.FFmpegLogCallback.set(); // enable better FFmpeg logs
+		String filter = "ddagrab=framerate=30:draw_mouse=0,hwdownload,format=bgra"; // different filters separated by "," | different settings of same filter separated by ":"
+		
+		// run inside try-with-resources to prevent resource leaks
+		try (
+				FFmpegFrameGrabber grabber = new FFmpegFrameGrabber(filter); // Desktop Duplication mode (grabs frame directly from GPU memory buffer just before sent to monitor)
+				Java2DFrameConverter converter = new Java2DFrameConverter();
+			) {
+			grabber.setFormat("lavfi"); // tells FFmpeg to treat input as filter
+			grabber.start();
 			
-			// Resize to Stormworks Monitor resolution
-			Image scaled = screen.getScaledInstance(widthSW.get(), heightSW.get(), Image.SCALE_FAST);
-			img.getGraphics().drawImage(scaled, 0, 0, null);
-			
-			encode(); //convert image buffer to string
-			main.updateFrame(imgEncoded); // send frame to main
-			
-			try {Thread.sleep(250);} catch (InterruptedException e) {e.printStackTrace();} // wait before getting new frame
+			while (running) {
+				Frame frame = grabber.grab();
+				if (frame != null) {
+					BufferedImage screen = converter.getBufferedImage(frame); // get frame as BufferedImage
+	                
+	                // Resize image to SW resolution
+	                Image scaled = screen.getScaledInstance(widthSW.get(), heightSW.get(), Image.SCALE_FAST);
+	                img = new BufferedImage(widthSW.get(), heightSW.get(), BufferedImage.TYPE_INT_RGB);
+	                img.getGraphics().drawImage(scaled, 0, 0, null);
+					
+					encode(); //convert image buffer to string
+					main.updateFrame(imgEncoded); // send frame to main
+				}
+			}
+		} catch (org.bytedeco.javacv.FrameGrabber.Exception e) {
+			e.printStackTrace();
 		}
 	}
 }

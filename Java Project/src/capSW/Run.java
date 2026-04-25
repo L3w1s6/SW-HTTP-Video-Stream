@@ -92,7 +92,6 @@ public class Run {
 			String query = exchange.getRequestURI().getQuery();
 			if (query != null) {// check query exists
 				HashMap<String, String> params = parseQuery(query);
-				System.out.println(params);
 				
 				if (params.containsKey("w") && params.containsKey("h")) {
 					int w = Integer.parseInt(params.get("w")), h = Integer.parseInt(params.get("h"));
