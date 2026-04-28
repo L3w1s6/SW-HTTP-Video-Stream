@@ -8,6 +8,11 @@ import java.awt.Robot;
 import java.awt.image.BufferedImage;
 
 import org.bytedeco.javacv.FFmpegFrameGrabber;
+import org.bytedeco.javacv.FFmpegFrameGrabber.Exception;
+
+import javafx.animation.AnimationTimer;
+import javafx.embed.swing.SwingFXUtils;
+
 import org.bytedeco.javacv.Frame;
 import org.bytedeco.javacv.Java2DFrameConverter;
 
@@ -15,20 +20,19 @@ public class CaptureThread extends Thread {
 	private ResourceSync<Integer> widthSW, heightSW;
 	
 	private Run main;
-	private boolean running;
-	private Java2DFrameConverter converter;
-	private BufferedImage img;
+	private ResourceSync<Boolean> running;
+	private ResourceSync<BufferedImage> img;
 	private String imgEncoded;
 	
 	public CaptureThread(Run main) {
 		this.main = main;
 		
-		running = true;
+		running = new ResourceSync<>(true);
 		
 		widthSW = new ResourceSync<>(288);
 		heightSW = new ResourceSync<>(160);
 		
-		img = new BufferedImage(widthSW.get(), heightSW.get(), BufferedImage.TYPE_INT_RGB);
+		img = new ResourceSync<>(new BufferedImage(widthSW.get(), heightSW.get(), BufferedImage.TYPE_INT_RGB));
 		imgEncoded = "";
 	}
 	
@@ -40,16 +44,16 @@ public class CaptureThread extends Thread {
 	
 	private void encode() {
 		StringBuilder packet = new StringBuilder();
-		int width = img.getWidth();
-		int height = img.getHeight();
+		int width = img.get().getWidth();
+		int height = img.get().getHeight();
 		
 		for (int y = 0; y < height; y++) {
 			for (int x = 0; x < width; x++) {
-				int color = img.getRGB(x, y);
+				int color = img.get().getRGB(x, y);
 				int startX = x;
 				
 				// Find how many horizontal pixels have the same color
-				while (x + 1 < width && img.getRGB(x + 1, y) == color) {x++;}
+				while (x + 1 < width && img.get().getRGB(x + 1, y) == color) {x++;}
 				int runWidth = (x - startX) + 1;
 				
 				// Format: R,G,B,X,Y,W| (Quantized to 0-255)
@@ -59,6 +63,40 @@ public class CaptureThread extends Thread {
 			}
 		}
 		imgEncoded = packet.toString();
+	}
+	
+	public BufferedImage getImage() {
+		return img.get();
+	}
+	
+	public void startCapture() {
+		running.set(true);
+	}
+	
+	public void stopCapture() {
+		running.set(false);
+	}
+	
+	public void capture(FFmpegFrameGrabber grabber, Java2DFrameConverter converter) {
+		try {
+			Frame frame;
+			frame = grabber.grab();
+			if (frame != null) {
+				BufferedImage screen = converter.getBufferedImage(frame); // get frame as BufferedImage
+	            
+	            // Resize image to SW resolution
+	            Image scaled = screen.getScaledInstance(widthSW.get(), heightSW.get(), Image.SCALE_FAST);
+	            img.set(new BufferedImage(widthSW.get(), heightSW.get(), BufferedImage.TYPE_INT_RGB));
+	            img.get().getGraphics().drawImage(scaled, 0, 0, null);
+				
+				encode(); //convert image buffer to string
+				
+				main.setFrame(img.get());
+				main.updateFrame(imgEncoded); // send frame to main
+			}
+		} catch (Exception e) {
+			e.printStackTrace();
+		}
 	}
 	
 	@Override
@@ -74,18 +112,10 @@ public class CaptureThread extends Thread {
 			grabber.setFormat("lavfi"); // tells FFmpeg to treat input as filter
 			grabber.start();
 			
-			while (running) {
-				Frame frame = grabber.grab();
-				if (frame != null) {
-					BufferedImage screen = converter.getBufferedImage(frame); // get frame as BufferedImage
-	                
-	                // Resize image to SW resolution
-	                Image scaled = screen.getScaledInstance(widthSW.get(), heightSW.get(), Image.SCALE_FAST);
-	                img = new BufferedImage(widthSW.get(), heightSW.get(), BufferedImage.TYPE_INT_RGB);
-	                img.getGraphics().drawImage(scaled, 0, 0, null);
-					
-					encode(); //convert image buffer to string
-					main.updateFrame(imgEncoded); // send frame to main
+			// loop run capture at specific time (if running active) 
+			while (true) {
+				if (running.get()) {
+					capture(grabber, converter);
 				}
 			}
 		} catch (org.bytedeco.javacv.FrameGrabber.Exception e) {

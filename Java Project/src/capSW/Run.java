@@ -11,10 +11,14 @@ import java.net.URLDecoder;
 import java.util.HashMap;
 
 import com.sun.net.httpserver.HttpServer;
+
+import javafx.application.Application;
+
 import com.sun.net.httpserver.HttpHandler;
 import com.sun.net.httpserver.HttpExchange;
 
 public class Run {
+	private ResourceSync<BufferedImage> frameImage = new ResourceSync<>();
 	private ResourceSync<String> frameEncoded = new ResourceSync<>();
 	private final int PORT;
 	private int outW, outH; // shouldn't need thread-safe?
@@ -57,6 +61,14 @@ public class Run {
 	// Thread-safe update current encoded frame with new encoded frame
 	public void updateFrame(String encoded) {
 		frameEncoded.set(encoded);
+	}
+	
+	public BufferedImage getFrame() {
+		return frameImage.get();
+	}
+	
+	public void setFrame(BufferedImage img) {
+		frameImage.set(img);
 	}
 
 	public static void main(String[] args) {
@@ -106,5 +118,9 @@ public class Run {
 			exchange.close();
 		});
 		server.start();
+		
+		/*
+		 * UI
+		 */
 	}
 }
