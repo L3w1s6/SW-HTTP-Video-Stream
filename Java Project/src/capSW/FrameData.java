@@ -6,16 +6,17 @@ import java.awt.image.BufferedImage;
 import java.util.concurrent.locks.ReentrantLock;
 
 public class FrameData {
-	private ReentrantLock lock = new ReentrantLock();
+	private ReentrantLock lock = new ReentrantLock(); // concurrency lock
 	
+	// vars (not thread-safe)
 	private int scaledW = 64;
 	private int scaledH = 64;
 	private BufferedImage img = new BufferedImage(1920, 1080, BufferedImage.TYPE_INT_RGB);
 	private BufferedImage scaledImg = new BufferedImage(64, 64, BufferedImage.TYPE_INT_RGB);
 	private String encodedImg = "";
 	
-	// encode scaled img
-	public void encodeScaled() {
+	// encode scaled img (not thread-safe)
+	private void encodeScaled() {
 		StringBuilder packet = new StringBuilder();
 		int width = scaledW;
 		int height = scaledH;
@@ -38,38 +39,66 @@ public class FrameData {
 		encodedImg = packet.toString();
 	}
 	
-	// scale img to scaledImg
-	public void scale() {
+	// scale img to scaledImg (not thread-safe)
+	private void scale() {
 		// scale img & store in scaledImg
 		Image scaled = img.getScaledInstance(scaledW, scaledH, Image.SCALE_FAST);
         scaledImg = new BufferedImage(scaledW, scaledH, BufferedImage.TYPE_INT_RGB);
         scaledImg.getGraphics().drawImage(scaled, 0, 0, null);
 	}
 	
-	// update/calc all states
+	// update/calc all states (thread-safe)
 	public void updateImg(BufferedImage img) {
-		this.img = img;
-		scale();
-		encodeScaled();
+		lock.lock();
+		try {			
+			this.img = img;
+			scale();
+			encodeScaled();
+		} finally {
+			lock.unlock();
+		}
 	}
 	
+	// get captured screen image (thread-safe)
 	public BufferedImage getImg() {
-		return img;
+		lock.lock();
+		try {			
+			return img;
+		} finally {
+			lock.unlock();
+		}
 	}
 	
+	// get output scaled image (thread-safe)
 	public BufferedImage getScaledImg() {
-		return scaledImg;
+		lock.lock();
+		try {			
+			return scaledImg;
+		} finally {
+			lock.unlock();
+		}
 	}
 	
+	// get scaled image encoded as string (thread-safe)
 	public String getEncoded() {
-		return encodedImg;
+		lock.lock();
+		try {			
+			return encodedImg;
+		} finally {
+			lock.unlock();
+		}
 	}
 	
-	// set new scaled resolution & recalc if necessary
+	// set scaled resolution for next frame (thread-safe)
 	public void updateResolution(int w, int h) {
-		if (w != scaledW || h != scaledH) {
-			scaledW = w;
-			scaledH = h;
+		lock.lock();
+		try {			
+			if (w != scaledW || h != scaledH) {
+				scaledW = w;
+				scaledH = h;
+			}
+		} finally {
+			lock.unlock();
 		}
 	}
 }
