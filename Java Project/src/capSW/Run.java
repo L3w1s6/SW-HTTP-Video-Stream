@@ -18,15 +18,15 @@ import com.sun.net.httpserver.HttpHandler;
 import com.sun.net.httpserver.HttpExchange;
 
 public class Run {
-	private ResourceSync<BufferedImage> frameImage = new ResourceSync<>();
-	private ResourceSync<String> frameEncoded = new ResourceSync<>();
+//	private ResourceSync<BufferedImage> frameImage = new ResourceSync<>();
+//	private ResourceSync<String> frameEncoded = new ResourceSync<>();
 	private final int PORT;
-	private int outW, outH; // shouldn't need thread-safe?
+//	private int outW, outH; // shouldn't need thread-safe?
 	
 	public Run() {
 		PORT = 8080;
-		outW = 64;
-		outH = 64;
+//		outW = 64;
+//		outH = 64;
 	}
 
 	private static HashMap<String, String> parseQuery(String query) {
@@ -54,30 +54,31 @@ public class Run {
 	}
 	
 	// returns true if difference between new resolution & current presolution
-	private boolean outResDiff(int w, int h) {
-		return w != outW || h != outH;
-	}
-	
-	// Thread-safe update current encoded frame with new encoded frame
-	public void updateFrame(String encoded) {
-		frameEncoded.set(encoded);
-	}
-	
-	public BufferedImage getFrame() {
-		return frameImage.get();
-	}
-	
-	public void setFrame(BufferedImage img) {
-		frameImage.set(img);
-	}
+//	private boolean outResDiff(int w, int h) {
+//		return w != outW || h != outH;
+//	}
+//	
+//	// Thread-safe update current encoded frame with new encoded frame
+//	public void updateFrame(String encoded) {
+//		frameEncoded.set(encoded);
+//	}
+//	
+//	public BufferedImage getFrame() {
+//		return frameImage.get();
+//	}
+//	
+//	public void setFrame(BufferedImage img) {
+//		frameImage.set(img);
+//	}
 
 	public static void main(String[] args) {
 		Run main = new Run();
+		FrameData frameData = new FrameData();
 		
 		/*
 		 * Screen capture (downscaled)
 		 */
-		CaptureThread capThread = new CaptureThread(main);
+		CaptureThread capThread = new CaptureThread(main, frameData);
 		capThread.start();
 		
 		/*
@@ -87,37 +88,39 @@ public class Run {
 		try {
 			
 			server = HttpServer.create(new InetSocketAddress(main.PORT), 0);
+			server.createContext("/stream", exchange -> {
+				// SEND the compressed frame back as response
+//				String encoded = main.frameEncoded.get();
+				String encoded = frameData.getEncoded();
+				exchange.sendResponseHeaders(200, encoded.length());
+				OutputStream os = exchange.getResponseBody();
+				os.write(encoded.getBytes());
+				exchange.close();
+			});
+			server.createContext("/data", exchange -> {
+				// RECEIVE data from Stormworks
+				String query = exchange.getRequestURI().getQuery();
+				if (query != null) {// check query exists
+					HashMap<String, String> params = parseQuery(query);
+					
+					if (params.containsKey("w") && params.containsKey("h")) {
+						int w = Integer.parseInt(params.get("w")), h = Integer.parseInt(params.get("h"));
+						frameData.updateResolution(w, h);
+//						if (main.outResDiff(w, h)) {
+//							capThread.setOutputRes(w, h);
+//						}
+					}
+				}
+				
+				// always return & close GET
+				exchange.sendResponseHeaders(200, -1);
+				exchange.close();
+			});
+			server.start();
 			System.out.println("Server started on port " + main.PORT);
 		} catch (IOException e) {
 			e.printStackTrace();
 		}
-		server.createContext("/stream", exchange -> {
-			// SEND the compressed frame back as response
-			String encoded = main.frameEncoded.get();
-			exchange.sendResponseHeaders(200, encoded.length());
-			OutputStream os = exchange.getResponseBody();
-			os.write(encoded.getBytes());
-			exchange.close();
-		});
-		server.createContext("/data", exchange -> {
-			// RECEIVE data from Stormworks
-			String query = exchange.getRequestURI().getQuery();
-			if (query != null) {// check query exists
-				HashMap<String, String> params = parseQuery(query);
-				
-				if (params.containsKey("w") && params.containsKey("h")) {
-					int w = Integer.parseInt(params.get("w")), h = Integer.parseInt(params.get("h"));
-					if (main.outResDiff(w, h)) {
-						capThread.setOutputRes(w, h);
-					}
-				}
-			}
-			
-			// always return & close GET
-			exchange.sendResponseHeaders(200, -1);
-			exchange.close();
-		});
-		server.start();
 		
 		/*
 		 * UI
