@@ -18,7 +18,7 @@ import com.sun.net.httpserver.HttpHandler;
 import com.sun.net.httpserver.HttpExchange;
 
 public class Run {
-	private final int PORT = 8080;
+	private final int PORT = 8081;
 	
 	// parse list of parameters into HashMap
 	private static HashMap<String, String> parseQuery(String query) {
@@ -61,7 +61,6 @@ public class Run {
 		 */
 		HttpServer server = null;
 		try {
-			
 			server = HttpServer.create(new InetSocketAddress(main.PORT), 0);
 			server.createContext("/stream", exchange -> {
 				// receive data from Stormworks
@@ -76,10 +75,12 @@ public class Run {
 				}
 				
 				// send encoded frame as response
-				String encoded = frameData.getEncoded();
-				exchange.sendResponseHeaders(200, encoded.length());
+//				byte[] encodedBytes = frameData.getEncoded().getBytes();
+				byte[] encodedBytes = frameData.getEncodedBytes();
+				System.out.println(encodedBytes.length);
+				exchange.sendResponseHeaders(200, encodedBytes.length); // ISSUE: EMPTY BYTES REMOVED AT SW END
 				OutputStream os = exchange.getResponseBody();
-				os.write(encoded.getBytes());
+				os.write(encodedBytes);
 				exchange.close();
 			});
 			server.start();

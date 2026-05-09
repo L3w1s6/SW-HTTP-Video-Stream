@@ -38,8 +38,7 @@ public class CaptureThread extends Thread {
 	
 	public void capture(FFmpegFrameGrabber grabber, Java2DFrameConverter converter) {
 		try {
-			Frame frame;
-			frame = grabber.grab();
+			Frame frame = grabber.grab(); // gets next frame (waits using fps)
 			if (frame != null) {
 				BufferedImage screen = converter.getBufferedImage(frame); // get frame as BufferedImage
 	            frameData.updateImg(screen);
@@ -52,7 +51,7 @@ public class CaptureThread extends Thread {
 	@Override
 	public void run() {
 		org.bytedeco.javacv.FFmpegLogCallback.set(); // enable better FFmpeg logs
-		String filter = "ddagrab=framerate=2:draw_mouse=0,hwdownload,format=bgra"; // different filters separated by "," | different settings of same filter separated by ":"
+		String filter = "ddagrab=framerate=20:draw_mouse=0,hwdownload,format=bgra"; // different filters separated by "," | different settings of same filter separated by ":"
 		
 		// run inside try-with-resources to prevent resource leaks
 		try (
